@@ -1,1 +1,1 @@
-export const ROLES=['admin','analyst','viewer'];export const STATUSES={queued:'排队中',running:'计算中',completed:'已完成',failed:'失败'};
+export const ROLES=['admin','analyst','viewer'];export const ERRATA_STATUSES={calculating:'整组重述中',review:'待复核',reviewed:'已复核待切换',switched:'已切换',failed:'失败（旧组继续生效）'};export const STATUSES={queued:'排队中',running:'计算中',completed:'已完成',failed:'失败'};

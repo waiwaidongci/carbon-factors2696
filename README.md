@@ -21,6 +21,7 @@
 6. 09:40 admin核对数值后填写至少4字复核说明。
 7. 09:45 admin建立60秒周期计划，worker到期生成站内持久化交付。
 8. 09:46 viewer在站内收件箱下载交付CSV；审计页查看操作者与时间。
+9. 10:00 admin 发现电力因子登记有误，登记 `因子-v2`；在“因子勘误”页选旧/新版本与“电力”发起批次，核对逐行差额后整组复核并原子切换交付计划；原报告与已发交付保留。
 
 ## 快速启动
 ```sh
@@ -42,6 +43,19 @@ Python3.11/FastAPI/SQLAlchemy/Redis，PostgreSQL16；前端原生HTML/CSS/JS ES 
 后端开发：在backend安装requirements，设置DATABASE_URL/REDIS_URL/JWT_SECRET，`uvicorn src.main:app --reload`；前端可用Nginx或带同等代理的静态开发服务器。前后端全部业务计算在Python。
 
 环境变量：COMPOSE_PROJECT_NAME、FRONTEND_PORT、BACKEND_PORT、DB_PORT、JWT_SECRET（部署替换）、DATABASE_URL、REDIS_URL、SEED_DEMO。`.env`不入Git。数据库/Redis/共享产物为命名卷。共享角色枚举admin/analyst/viewer与状态queued/running/completed/failed分别定义于backend/src/constants/enums.py和frontend/src/constants/enums.js。两个中间件：统一可恢复校验错误、每IP每分钟360请求限流。
+
+## 因子勘误成组重述
+
+当某个活动因子登记有误时，负责人可在“因子勘误”页选择**旧因子版本、新因子版本与受影响活动**发起勘误批次：
+
+1. 系统只挑选**使用旧版本、包含受影响活动、已复核**的原报告，逐份复制其提交时冻结的来源快照与 SHA256 校验值；底稿后续修改不参与重算。
+2. 每份原报告生成一条重述明细，worker 异步重算；原报告、原快照与已发出的站内交付全部保留，不被覆盖。
+3. 整组重述必须全部完成，负责人填写至少 4 字复核说明后才进入 `reviewed`；任一明细失败则批次 `failed`，**旧组继续生效**，可重试（重试与重复投递幂等，不会重复生成报告或交付）。
+4. 只有 `reviewed` 的批次才能**原子切换**其关联交付计划：逐行锁定计划、核对旧报告与代次，一次性把计划指向新组并递增代次；任何计划已被并发修改则拒绝“过时切换”，批次保持 `reviewed`。
+5. 切换时已到期但尚未发出的结算补发为新组交付；已发出的交付保留原组。执行者持旧报告晚到写交付时会被计划行锁与代次校验拒绝。
+6. 计算中断可恢复：worker 周期性把超时的 `running` 明细与未执行的 `queued` 明细重新入队。
+
+新版本中除所选活动外的因子必须与旧版本一致，否则应拆分为多个勘误批次；重述报告只能随整批复核，不能单独复核。
 
 ## 已知边界
 定时分发为站内收件箱；一名worker轮询执行，无外部邮件。调度发送已复核固定报告快照，不自动重算新数据。时间显示Asia/Shanghai。报告导出适合小型数据；底稿全量加载240行演示数据。Google Fonts不可用时回退serif。后端API以专属字段对象收发，页面通过业务输入控件编辑，不要求用户写JSON。新增来源期间自动可选；专属字段和算法严格校验。JWT演示有效期2小时。
